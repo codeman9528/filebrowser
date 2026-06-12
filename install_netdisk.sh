@@ -5,10 +5,12 @@
 #   - nginx 直接对外发文件（用户走公开链接下载，无需登录）+ HTTPS
 #
 # 用法（参数传入，无需改文件）：
-#   bash install_netdisk.sh <域名> <admin密码> <证书邮箱>
+#   bash install_netdisk.sh <域名> <admin密码> <证书邮箱> [github镜像]
 #
-# 一行联网安装：
-#   curl -fsSL <raw直链> | sudo bash -s -- example.com 强密码 you@example.com
+# 国内服务器一行安装（脚本也走加速镜像，github 直链国内连不上）：
+#   curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/codeman9528/filebrowser/main/install_netdisk.sh | sudo bash -s -- example.com '强密码' you@example.com
+#
+# 镜像不通就把 ghfast.top 换成 ghproxy.net 或 gh-proxy.com（脚本内部下二进制也用同一个）。
 #
 # 适用：Debian 11+ / Ubuntu 20.04+ / CentOS 7+，需 root 或 sudo。
 # 前置：域名已备案，且 DNS 已解析到这台服务器的公网 IP；安全组放行 80、443。
@@ -23,6 +25,9 @@ EMAIL="${3:-${EMAIL:-}}"          # 申请 HTTPS 证书用（续期通知）
 
 FILES_DIR="/srv/files"          # 公开下载目录
 FB_DIR="/opt/filebrowser"       # Filebrowser 数据目录
+FB_VERSION="v2.63.14"           # Filebrowser 版本
+# GitHub 加速镜像（国内机用，按顺序自动尝试；可用第4参数或 GH_PROXY 环境变量覆盖）
+GH_PROXIES=("${4:-${GH_PROXY:-https://ghfast.top}}" "https://ghproxy.net" "https://gh-proxy.com")
 
 if [[ $EUID -ne 0 ]]; then echo "请用 root 或 sudo 运行"; exit 1; fi
 if [[ -z "$DOMAIN" || -z "$ADMIN_PASS" ]]; then
@@ -43,9 +48,31 @@ else
   echo "未识别的系统（既无 apt 也无 yum），请手动装 nginx/certbot"; exit 1
 fi
 
-echo ">>> [2/5] 安装 Filebrowser..."
+echo ">>> [2/5] 安装 Filebrowser（国内镜像直下二进制）..."
 if ! command -v filebrowser >/dev/null 2>&1; then
-  curl -fsSL https://raw.githubusercontent.com/filebrowser/filebrowser/master/scripts/get.sh | bash
+  case "$(uname -m)" in
+    x86_64)         FB_ARCH="amd64" ;;
+    aarch64|arm64)  FB_ARCH="arm64" ;;
+    *) echo "不支持的架构：$(uname -m)"; exit 1 ;;
+  esac
+  ASSET="linux-${FB_ARCH}-filebrowser.tar.gz"
+  GH_URL="https://github.com/filebrowser/filebrowser/releases/download/${FB_VERSION}/${ASSET}"
+  TMP="$(mktemp -d)"
+  ok=""
+  for proxy in "${GH_PROXIES[@]}"; do
+    url="${proxy%/}/${GH_URL}"
+    echo "    尝试镜像: $url"
+    if curl -fsSL -m 120 -o "$TMP/fb.tar.gz" "$url"; then ok=1; break; fi
+    echo "    该镜像失败，换下一个..."
+  done
+  if [[ -z "$ok" ]]; then
+    echo "!! 所有镜像都下载失败。换个镜像重试：GH_PROXY=https://ghproxy.net 再跑，或手动下 $GH_URL 上传到服务器解压到 /usr/local/bin/filebrowser"
+    exit 1
+  fi
+  tar -xzf "$TMP/fb.tar.gz" -C "$TMP" filebrowser
+  install -m 0755 "$TMP/filebrowser" /usr/local/bin/filebrowser
+  rm -rf "$TMP"
+  echo "    已安装: $(filebrowser version 2>/dev/null || echo filebrowser)"
 fi
 
 echo ">>> [3/5] 初始化目录与账号..."
