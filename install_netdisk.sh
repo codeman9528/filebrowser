@@ -36,6 +36,9 @@ if [[ -z "$DOMAIN" || -z "$ADMIN_PASS" ]]; then
   exit 1
 fi
 EMAIL="${EMAIL:-admin@$DOMAIN}"   # 邮箱没填就用默认
+if [[ ${#ADMIN_PASS} -lt 12 ]]; then
+  echo "密码太短：Filebrowser 要求至少 12 位（你填的是 ${#ADMIN_PASS} 位），换个更长的再跑"; exit 1
+fi
 
 echo ">>> [1/5] 安装依赖（nginx、certbot）..."
 if command -v apt >/dev/null 2>&1; then
