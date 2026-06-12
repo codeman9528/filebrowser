@@ -19,7 +19,7 @@ set -euo pipefail
 
 # ===== 参数：命令行 > 环境变量 =====
 DOMAIN="${1:-${DOMAIN:-}}"        # 备案域名
-ADMIN_PASS="${2:-${ADMIN_PASS:-}}"# Filebrowser 后台 admin 密码
+ADMIN_PASS="${2:-${ADMIN_PASS:-}}" # Filebrowser 后台 admin 密码
 EMAIL="${3:-${EMAIL:-}}"          # 申请 HTTPS 证书用（续期通知）
 # ==================================
 
